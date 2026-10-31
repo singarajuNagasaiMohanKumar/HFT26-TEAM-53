@@ -8,6 +8,8 @@ import {
   askRepository,
 } from "../services/api";
 import Editor from "@monaco-editor/react";
+import ArchitectureGraph from "../architecture/ArchitectureGraph";
+import { Network } from "lucide-react";
 import {
   Code2,
   Search,
@@ -189,6 +191,50 @@ function Workspace() {
 
 const repoId = location.state?.repoId;
 const initialRepoData = location.state?.repoData;
+const [architectureData, setArchitectureData] = useState(null);
+const [architectureLoading, setArchitectureLoading] = useState(false);
+const [architectureError, setArchitectureError] = useState("");
+
+useEffect(() => {
+  if (!repoId) return;
+
+  let cancelled = false;
+
+  const fetchArchitecture = async () => {
+    try {
+      setArchitectureLoading(true);
+      setArchitectureError("");
+
+      const response = await fetch(
+        `http://localhost:8081/architecture/${encodeURIComponent(repoId)}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Architecture analysis failed");
+      }
+
+      if (!cancelled) {
+        setArchitectureData(data);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setArchitectureError(error.message);
+      }
+    } finally {
+      if (!cancelled) {
+        setArchitectureLoading(false);
+      }
+    }
+  };
+
+  fetchArchitecture();
+
+  return () => {
+    cancelled = true;
+  };
+}, [repoId]);
 
 const [repoData, setRepoData] = useState(initialRepoData || null);
 const [repositoryLoading, setRepositoryLoading] = useState(false);
@@ -740,7 +786,48 @@ const displayedResults = searchResults ?? filteredResults;
             ))}
           </div>
         </section>
+<section className="mb-8 overflow-hidden rounded-2xl border border-white/10 bg-[#111827]">
+  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 p-5">
+    <div className="flex items-center gap-3">
+      <Network className="text-violet-400" size={22} />
+      <div>
+        <h2 className="font-semibold">Architecture Explorer</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Visualise file dependencies and repository connections
+        </p>
+      </div>
+    </div>
 
+    {architectureData && (
+      <span className="text-sm text-gray-400">
+        {architectureData.total_files} files · {architectureData.total_connections} connections
+      </span>
+    )}
+  </div>
+
+  <div className="p-5">
+    {architectureLoading && (
+      <p className="text-sm text-gray-400">
+        Analysing repository architecture...
+      </p>
+    )}
+
+    {architectureError && (
+      <p className="text-sm text-red-400">
+        {architectureError}
+      </p>
+    )}
+
+    {architectureData && (
+      <div style={{ height: "650px" }}>
+        <ArchitectureGraph
+          nodes={architectureData.nodes || []}
+          edges={architectureData.edges || []}
+        />
+      </div>
+    )}
+  </div>
+</section>
 <div className="grid grid-cols-1 gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
 
 
